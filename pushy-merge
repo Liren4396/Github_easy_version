@@ -1,0 +1,72 @@
+#!/bin/dash
+
+# Parse command line arguments
+BRANCH_NAME=$1
+MESSAGE=$2
+
+# Check if branch/commit name and message are provided
+if [ -z "$MESSAGE" ]; then
+    echo "$0: error: empty commit message"
+    exit 1
+fi
+
+# Check if .pushy directory exists
+PUSHY_DIR=".pushy"
+
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "$0: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+# Check if the specified branch exists
+if [ ! -d "$PUSHY_DIR/branches/$BRANCH_NAME" ]; then
+    echo "$0: error: unknown branch '$BRANCH_NAME'"
+    exit 1
+fi
+
+# Get the current branch name
+CURR_BRANCH_TXT="$PUSHY_DIR/curr_branch.txt"
+if [ ! -f "$CURR_BRANCH_TXT" ]; then
+    echo "$0: error: this command can not be run until after the first commit"
+    exit 1
+else
+    CURR_BRANCH_NAME=$(cat "$CURR_BRANCH_TXT")
+fi
+
+# Set paths for the merge and current branches
+MERGE_BRANCH_PATH="$PUSHY_DIR/branches/$BRANCH_NAME"
+CURR_BRANCH_PATH="$PUSHY_DIR/branches/$CURR_BRANCH_NAME"
+
+# Check if the current branch is the same as the merge branch
+if [ "$MERGE_BRANCH_PATH" = "$CURR_BRANCH_PATH" ]; then
+    echo "Already on '$BRANCH_NAME'"
+fi
+
+# Get the last commit number and set the path for the last commit
+commit_number=$(cat $PUSHY_DIR/commit_number)
+last_commit_number=$((commit_number-1))
+LAST_COMMIT_PATH="$PUSHY_DIR/commits/commit$last_commit_number"
+
+# Check for conflicting files between branches
+CONFLICT_FILES=""
+for FILE in "$LAST_COMMIT_PATH"/*; do
+    FILE=$(basename "$FILE")
+    if [ "$FILE" = "message.txt" ]; then
+        continue
+    fi
+    if [ -f "$MERGE_BRANCH_PATH/$FILE" ] && [ -f "$CURR_BRANCH_PATH/$FILE" ] && ! diff "$LAST_COMMIT_PATH/$FILE" "$CURR_BRANCH_PATH/$FILE" >/dev/null && ! diff "$MERGE_BRANCH_PATH/$FILE" "$LAST_COMMIT_PATH/$FILE" >/dev/null; then
+        CONFLICT_FILES="$CONFLICT_FILES\n$FILE"
+    fi
+done
+
+if [ "$CONFLICT_FILES" != "" ]; then
+    echo "$0: error: These files can not be merged:$CONFLICT_FILES"
+    exit 1
+fi
+# Add changes from the specified branch/commit to the index
+# Here, let's assume some mechanism to fetch changes from the branch/commit and add them to the index
+for FILE in "$MERGE_BRANCH_PATH"/*; do
+    cp "$FILE" "$CURR_BRANCH_PATH"
+    cp "$FILE" .
+done
+echo "Fast-forward: no commit created"

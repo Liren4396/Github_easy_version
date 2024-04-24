@@ -1,0 +1,78 @@
+#!/bin/dash
+
+# Parse command line arguments
+BRANCH_NAME=$1
+
+# Check if branch name is provided
+if [ -z "$BRANCH_NAME" ]; then
+    echo "$0: error: No branch name specified"
+    exit 1
+fi
+
+# Check if .pushy directory exists
+PUSHY_DIR=".pushy"
+
+BRANCHES_DIR="$PUSHY_DIR/branches"
+
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "$0: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+CURR_COMMIT_TXT="$PUSHY_DIR/commit_number"
+# Check if branches directory exists
+if [ ! -f "$CURR_COMMIT_TXT" ]; then
+    echo "$0: error: this command can not be run until after the first commit"
+    exit 1
+fi
+
+CURR_BRANCH_TXT="$PUSHY_DIR/curr_branch.txt"
+CURR_BRANCH=$(cat $CURR_BRANCH_TXT)
+#CURR_BRANCH="$BRANCHES_DIR/$CURR_BRANCH"
+
+
+if [ "$CURR_BRANCH" = "$BRANCH_NAME" ]; then
+    echo "Already on '$BRANCH_NAME'"
+fi
+
+# Check if the specified branch exists
+if [ ! -d "$BRANCHES_DIR/$BRANCH_NAME" ]; then
+    echo "$0: error: unknown branch '$BRANCH_NAME'"
+    exit 1
+fi
+
+# Remove files from the current directory if they don't exist in the specified branch
+for FILE in *; do
+    if [ -f "$FILE" ] && [ ! -d "$FILE" ] && ! echo "$FILE" | grep -qE "^pushy-"; then
+        if [ ! -f "$BRANCHES_DIR/$BRANCH_NAME/$FILE" ] && [ -f "$BRANCHES_DIR"/"$CURR_BRANCH"/"$FILE" ]; then
+            rm "$FILE"
+        fi
+    fi
+done
+
+# Check for conflicts with files in the specified branch
+for FILE in "$BRANCHES_DIR"/"$BRANCH_NAME"/*; do
+    filename=$(basename "$FILE")
+    if [ -f "$filename" ] && ! diff "$FILE" "$filename" >/dev/null && [ ! -f "$BRANCHES_DIR/$CURR_BRANCH/$filename" ]; then
+        echo "$0: error: Your changes to the following files would be overwritten by checkout:"
+        echo "$filename"
+        exit 1
+    fi
+    if [ "$filename" = "message.txt" ]; then
+        continue
+    fi
+
+    if [ -f "$filename" ] && [ -f "$BRANCHES_DIR/$CURR_BRANCH/$filename" ] && ! diff "$FILE" "$filename" >/dev/null && ! diff "$filename" "$BRANCHES_DIR/$CURR_BRANCH/$filename" >/dev/null; then
+        cp "$filename" "$FILE"
+    else
+        
+        cp "$FILE" .
+        cp -r "$FILE" "$PUSHY_DIR/index"
+    fi
+done
+
+# Switch to the specified branch
+# For simplicity, let's assume switching branches involves 
+# some action like updating the current branch pointer or working directory.
+echo "Switched to branch '$BRANCH_NAME'"
+echo "$BRANCH_NAME" >$CURR_BRANCH_TXT

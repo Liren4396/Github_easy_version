@@ -1,0 +1,28 @@
+#!/bin/dash
+
+# Check if .pushy directory exists, if not, create it
+PUSHY_DIR=".pushy"
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "pushy-add: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+# Create a sub-directory within .pushy to store added files
+INDEX_DIR="$PUSHY_DIR/index"
+if [ ! -d "$INDEX_DIR" ]; then
+    mkdir "$INDEX_DIR"
+fi
+
+# Copy files to the index directory
+for filename in "$@"; do
+    if [ ! -f "$filename" ]; then
+        if [ -f "$INDEX_DIR/$filename" ]; then 
+            rm "$INDEX_DIR/$filename"
+        else
+
+            echo "pushy-add: error: can not open '$filename'"
+        fi
+    else
+        cp "$filename" "$INDEX_DIR"
+    fi
+done

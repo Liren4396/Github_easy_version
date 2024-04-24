@@ -1,0 +1,38 @@
+#!/bin/dash
+
+# Define the commit and filename
+COMMIT="${1%:*}"
+FILENAME="${1#*:}"
+
+# Define the .pushy directory
+PUSHY_DIR=".pushy"
+
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "$0: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+# If commit is not specified, use the index
+if [ -z "$COMMIT" ]; then
+    INDEX_DIR="$PUSHY_DIR/index"
+    FILE_PATH="$INDEX_DIR/$FILENAME"
+    if [ ! -f "$FILE_PATH" ]; then
+        echo "$0: error: '$FILENAME' not found in index"
+        exit 1
+    fi
+else
+    # Use the specified commit
+    COMMIT_DIR="$PUSHY_DIR/commits/commit$COMMIT"
+    FILE_PATH="$COMMIT_DIR/$FILENAME"
+    if [ ! -d "$COMMIT_DIR" ]; then
+        echo "$0: error: unknown commit '$COMMIT'"
+        exit 1
+    fi
+    if [ ! -f "$FILE_PATH" ]; then
+        echo "$0: error: '$FILENAME' not found in commit $COMMIT"
+        exit 1
+    fi
+fi
+
+# Print the contents of the file
+cat "$FILE_PATH"

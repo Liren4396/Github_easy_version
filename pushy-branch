@@ -1,0 +1,83 @@
+#!/bin/dash
+
+# Parse command line arguments
+while [ $# -gt 0 ]; do
+    case $1 in
+        -d)
+            DELETE=true
+            ;;
+        *)
+            BRANCH_NAME=$1
+            ;;
+    esac
+    shift
+done
+
+# Check if .pushy directory exists
+PUSHY_DIR=".pushy"
+
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "$0: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+BRANCHES_DIR="$PUSHY_DIR/branches"
+# Check if branches directory exists, if not create it
+if [ ! -d "$BRANCHES_DIR" ]; then
+    mkdir "$BRANCHES_DIR"
+    mkdir "$BRANCHES_DIR/master"
+    CURR_BRANCH_TXT="$PUSHY_DIR/curr_branch.txt"
+    echo "master" >$CURR_BRANCH_TXT
+fi
+
+CURR_COMMIT_TXT="$PUSHY_DIR/commit_number"
+if [ ! -f "$CURR_COMMIT_TXT" ]; then
+    echo "$0: error: this command can not be run until after the first commit"
+    exit 1
+fi
+
+# If branch name is not provided, list all branches
+if [ -z "$BRANCH_NAME" ]; then
+    ls -A ".pushy/branches"
+    exit 0
+fi
+
+# If -d option is specified, delete the branch
+if [ "$DELETE" = true ]; then
+    if [ "$BRANCH_NAME" = "master" ]; then
+        echo "$0: error: can not delete branch 'master': default branch"
+        exit 1
+    fi
+    if [ ! -d "$BRANCHES_DIR/$BRANCH_NAME" ]; then
+        echo "$0: error: branch '$BRANCH_NAME' doesn't exist"
+        exit 1
+    fi
+    for FILE in "$BRANCHES_DIR/$BRANCH_NAME"/*; do
+        FILE=$(basename "$FILE")
+        if [ ! -f "$FILE" ]; then
+            echo "$0: error: branch '$BRANCH_NAME' has unmerged changes"
+            exit 1
+        fi
+    done
+    # Delete the branch
+    rm -r "${BRANCHES_DIR:?}/$BRANCH_NAME"
+    echo "Deleted branch '$BRANCH_NAME'"
+    exit 0
+fi
+# Check if the branch already exists
+if [ -d "$BRANCHES_DIR/$BRANCH_NAME" ]; then
+    echo "$0: error: branch '$BRANCH_NAME' already exists"
+    exit 1
+fi
+# Create the branch directory
+mkdir "$BRANCHES_DIR/$BRANCH_NAME"
+# Copy files from the current branch to the new branch
+CURR_BRANCH_TXT="$PUSHY_DIR/curr_branch.txt"
+CURR_BRANCH=$(cat $CURR_BRANCH_TXT)
+for FILE in "$BRANCHES_DIR"/"$CURR_BRANCH"/*; do
+    if [ "$(basename "$FILE")" = "message.txt" ]; then
+        continue
+    fi
+    cp "$FILE" "$BRANCHES_DIR/$BRANCH_NAME/"
+    
+done

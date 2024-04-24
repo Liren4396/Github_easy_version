@@ -1,0 +1,87 @@
+#!/bin/dash
+
+PUSHY_DIR=".pushy"
+INDEX_DIR="$PUSHY_DIR/index"
+COMMIT_DIR="$PUSHY_DIR/commits"
+# Check if the pushy repository directory exists
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "$0: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+# Function to check file status
+check_status() {
+    local FILE="$1"
+    local INDEX_FILE="$INDEX_DIR/$FILE"
+    local COMMIT_FILE="$COMMIT_DIR/commit$commit_number/$FILE"
+    if [ -f "$INDEX_FILE" ] && [ -f "$FILE" ] && ! diff "$INDEX_FILE" "$FILE" >/dev/null; then
+        curr_index_diff=1 # File changed in the current index
+    else 
+        curr_index_diff=0 # File same as in the current index
+    fi
+    if [ -f "$COMMIT_FILE" ] && [ -f "$INDEX_FILE" ] && ! diff "$INDEX_DIR" "$COMMIT_FILE" >/dev/null; then
+        index_commit_diff=1
+    else
+        index_commit_diff=0
+    fi
+    if [ -f "$COMMIT_FILE" ] && [ -f "$FILE" ] && ! diff "$FILE" "$COMMIT_FILE" >/dev/null; then
+        curr_commit_diff=1
+    else
+        curr_commit_diff=0
+    fi
+
+    if [ -f "$INDEX_FILE" ] && [ ! -f "$FILE" ] && [ -f "$COMMIT_FILE" ]; then
+        echo "$FILE - file deleted"
+    elif [ -f "$INDEX_FILE" ] && [ ! -f "$FILE" ] && [ ! -f "$COMMIT_FILE" ]; then
+        echo "$FILE - added to index, file deleted"
+    elif [ ! -f "$INDEX_FILE" ] && [ ! -f "$FILE" ] && [ -f "$COMMIT_FILE" ]; then
+        echo "$FILE - file deleted, deleted from index"
+    
+    elif [ ! -f "$INDEX_FILE" ] && [ -f "$FILE" ] && [ -f "$COMMIT_FILE" ]; then
+        
+        echo "$FILE - deleted from index"
+    elif [ -f "$INDEX_FILE" ] && [ -f "$FILE" ] && [ ! -f "$COMMIT_FILE" ]; then
+        if [ "$curr_index_diff" -eq 1 ]; then
+            echo "$FILE - added to index, file changed"
+        else
+            echo "$FILE - added to index"
+        fi
+        
+    elif [ "$curr_commit_diff" -eq 1 ] && [ "$index_commit_diff" -eq 0 ] && [ "$curr_index_diff" -eq 1 ] && [ -f "$INDEX_FILE" ] && [ -f "$FILE" ] && [ -f "$COMMIT_FILE" ]; then
+
+        echo "$FILE - file changed, changes not staged for commit"
+    elif [ "$curr_commit_diff" -eq 0 ] && [ "$index_commit_diff" -eq 0 ] && [ "$curr_index_diff" -eq 0 ] && [ -f "$INDEX_FILE" ] && [ -f "$FILE" ] && [ -f "$COMMIT_FILE" ]; then
+        echo "$FILE - same as repo"
+    elif [ "$curr_commit_diff" -eq 1 ] && [ "$index_commit_diff" -eq 1 ] && [ "$curr_index_diff" -eq 0 ]; then
+        echo "$FILE - file changed, changes staged for commit"
+    elif [ "$curr_commit_diff" -eq 1 ] && [ "$index_commit_diff" -eq 1 ] && [ "$curr_index_diff" -eq 1 ]; then
+        echo "$FILE - file changed, different changes staged for commit"
+    elif [ ! -f "$INDEX_FILE" ] && [ -f "$FILE" ] && [ ! -f "$COMMIT_FILE" ]; then
+        echo "$FILE - untracked"
+    else
+        echo "$FILE - same as repo"
+    fi 
+}
+
+# Get the current commit number
+commit_number=$(cat "$PUSHY_DIR/commit_number")
+commit_number=$((commit_number-1))
+
+FILE_STATUS_TXT=$PUSHY_DIR/file_status.txt
+cat /dev/null >$FILE_STATUS_TXT
+
+true > "$FILE_STATUS_TXT"
+# Get files from current Dir 
+ls > $FILE_STATUS_TXT
+# Get files from index Dir 
+ls $INDEX_DIR >> $FILE_STATUS_TXT
+# Get files from commit Dir 
+ls $COMMIT_DIR/commit$commit_number >> $FILE_STATUS_TXT
+
+sort -u -o $FILE_STATUS_TXT $FILE_STATUS_TXT
+sed "/message.txt/d" $FILE_STATUS_TXT >$FILE_STATUS_TXT.tmp && mv $FILE_STATUS_TXT.tmp $FILE_STATUS_TXT
+
+# Loop through each file in the status file and check its status
+cat $FILE_STATUS_TXT | while IFS= read -r FILE1; do
+    check_status "$FILE1"
+done

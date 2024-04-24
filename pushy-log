@@ -1,0 +1,27 @@
+#!/bin/dash
+
+# Define the commits log file
+PUSHY_DIR=".pushy"
+COMMIT_LOG="$PUSHY_DIR/commit_number"
+
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "pushy-log: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+# Check if the commits log exists
+if [ ! -f "$COMMIT_LOG" ]; then
+    exit 0
+fi
+commit_number=$(cat $COMMIT_LOG)
+commit_number=$((commit_number-1))
+# Loop through each commit directory and print commit number and message
+while [ $commit_number -ge 0 ]; do
+    curr_commit_repo="$PUSHY_DIR/commits/commit$commit_number"
+    if [ -d $curr_commit_repo ]; then
+        commit_message=$(cat "$curr_commit_repo/message.txt")
+        echo "$commit_number $commit_message"
+        
+    fi
+    commit_number=$((commit_number-1))
+done

@@ -1,0 +1,88 @@
+#!/bin/dash
+PUSHY_DIR=".pushy"
+INDEX_DIR="$PUSHY_DIR/index"
+COMMIT_DIR="$PUSHY_DIR/commits"
+MESSAGE="$2"
+
+# Check if .pushy directory exists
+if [ ! -d "$PUSHY_DIR" ]; then
+    echo "pushy-commit: error: pushy repository directory .pushy not found"
+    exit 1
+fi
+
+# Parse command line arguments
+while getopts ":am:" opt; do
+    case $opt in
+        a)
+            # Add all files extract current dir from the index directory to the index
+            for FILE in "$INDEX_DIR"/*; do
+                    FILE=$(basename "$FILE")
+                    # 复制文件到索引目录
+                    if [ -f "$FILE" ]; then
+                        cp -r "$FILE" "$INDEX_DIR/"
+                    fi
+            done
+            ;;
+        m)
+            MESSAGE="$OPTARG"
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            exit 1
+            ;;
+        :)
+            echo "Option -$OPTARG requires an argument." >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Create commits directory if it doesn't exist
+if [ ! -d "$COMMIT_DIR" ]; then
+    mkdir "$COMMIT_DIR"
+fi
+
+# Determine the commit number
+if [ -f "$PUSHY_DIR/commit_number" ]; then
+    commit_number=$(cat $PUSHY_DIR/commit_number)
+    last_commit_number=$((commit_number-1))
+    diff_output=$(diff -rq --exclude="message.txt" "$INDEX_DIR" "$COMMIT_DIR/commit$last_commit_number")
+    if [ -z "$diff_output" ];then
+        echo "nothing to commit"
+        exit 1
+    fi
+else
+    commit_number=0
+fi
+
+# Copy files from index to commit directory
+cp -r "$INDEX_DIR" "$COMMIT_DIR/commit$commit_number"
+
+# Write commit message to message.txt
+echo "$MESSAGE" > "$COMMIT_DIR/commit$commit_number/message.txt"
+
+echo "Committed as commit $commit_number"
+# Set up branches directory and set current branch
+CURR_BRANCH_TXT="$PUSHY_DIR/curr_branch.txt"
+BRANCHES_DIR="$PUSHY_DIR/branches"
+if [ ! -d "$BRANCHES_DIR" ]; then
+    mkdir "$BRANCHES_DIR"
+    mkdir "$BRANCHES_DIR/master"
+    
+    echo "master" >$CURR_BRANCH_TXT
+fi
+# Copy committed files to the current branch directory
+CURR_BRANCH=$(cat $CURR_BRANCH_TXT)
+LAST_COMMIT_PATH="$PUSHY_DIR/commits/commit$commit_number"
+
+for FILE in "$LAST_COMMIT_PATH"/*; do
+    if [ "$(basename "$FILE")" = "message.txt" ]; then
+        continue
+    fi
+    cp "$FILE" "$BRANCHES_DIR/$CURR_BRANCH/"
+done
+
+# Increment commit number
+commit_number=$((commit_number+1))
+echo "$commit_number" >"$PUSHY_DIR/commit_number"
+
